@@ -53,11 +53,12 @@ class Southwest(object):
         )
         return self._session.get(url)
 
-    def get_available_flights(self, departure_date, origin_airport, destination_airport, currency='Points'):
-        url = '/api/extensions/v1/mobile/flights/products?origination-airport={origin_airport}&destination-airport={destination_airport}&departure-date={departure_date}&departure-date2=&number-adult-passengers=1&number-senior-passengers=0&promo-code=&currency-type=Points'.format(
+    def get_available_flights(self, departure_date, origin_airport, destination_airport, currency):
+        url = '/api/extensions/v1/mobile/flights/products?origination-airport={origin_airport}&destination-airport={destination_airport}&departure-date={departure_date}&departure-date2=&number-adult-passengers=1&number-senior-passengers=0&promo-code=&currency-type={currency}'.format(
             origin_airport=origin_airport,
             destination_airport=destination_airport,
-            departure_date=departure_date
+            departure_date=departure_date,
+            currency=currency
         )
         return self._session.get(url)
 
@@ -96,7 +97,8 @@ class _SouthwestSession():
 
     @staticmethod
     def _parsed_response(response, success_codes=[200]):
+        print(response.text)
         if response.status_code not in success_codes:
-            print(response.text)
+            # print(response.text)
             raise Exception('Invalid status code received. Expected {}. Received {}.'.format(success_codes, response.status_code))
         return response.json()

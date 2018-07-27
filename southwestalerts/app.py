@@ -2,8 +2,8 @@ import logging
 import requests
 import sys
 
-from southwestalerts.southwest import Southwest
-from southwestalerts import settings
+from southwest import Southwest
+import settings
 
 
 def check_for_price_drops(username, password, email):
@@ -13,7 +13,15 @@ def check_for_price_drops(username, password, email):
             passenger = flight['passengers'][0]
             record_locator = flight['recordLocator']
             cancellation_details = southwest.get_cancellation_details(record_locator, passenger['firstName'], passenger['lastName'])
-            itinerary_price = cancellation_details['pointsRefund']['amountPoints']
+            currency = cancellation_details['currencyType']
+            if currency == 'Points':
+              itinerary_price = cancellation_details['pointsRefund']['amountPoints'] 
+            elif currency == 'Dollars':
+              itinerary_price = (cancellation_details['availableFunds']['refundableAmountCents'] + cancellation_details['availableFunds']['nonrefundableAmountCents']) / 100.00
+            else:
+              continue
+
+
             # Calculate total for all of the legs of the flight
             matching_flights_price = 0
             for origination_destination in cancellation_details['itinerary']['originationDestinations']:
@@ -26,18 +34,24 @@ def check_for_price_drops(username, password, email):
                 available = southwest.get_available_flights(
                     departure_date,
                     origin_airport,
-                    destination_airport
+                    destination_airport,
+                    currency
                 )
 
                 # Find that the flight that matches the purchased flight
                 matching_flight = next(f for f in available['trips'][0]['airProducts'] if f['segments'][0]['departureDateTime'] == departure_datetime and f['segments'][-1]['arrivalDateTime'] == arrival_datetime)
-                matching_flight_price = matching_flight['fareProducts'][-1]['pointsPrice']['discountedRedemptionPoints']
+                if currency == 'Points':
+                    matching_flight_price = matching_flight['fareProducts'][-1]['pointsPrice']['discountedRedemptionPoints']
+                else:
+                    matching_flight_price = matching_flight['fareProducts'][-1]['currencyPrice']['totalFareCents'] / 100.00
+                if matching_flight_price == 0:
+                    matching_flight_price = 999999
                 matching_flights_price += matching_flight_price
-
             # Calculate refund details (current flight price - sum(current price of all legs), and print log message
             refund_amount = itinerary_price - matching_flights_price
-            message = '{base_message} points detected for flight {record_locator} from {origin_airport} to {destination_airport} on {departure_date}'.format(
+            message = '{base_message} {currency} detected for flight {record_locator} from {origin_airport} to {destination_airport} on {departure_date}'.format(
                 base_message='Price drop of {}'.format(refund_amount) if refund_amount > 0 else 'Price increase of {}'.format(refund_amount * -1),
+                currency=currency,
                 refund_amount=refund_amount,
                 record_locator=record_locator,
                 origin_airport=origin_airport,
@@ -58,6 +72,6 @@ def check_for_price_drops(username, password, email):
 
 
 if __name__ == '__main__':
-    logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+    logging.basicConfig(format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',stream=sys.stdout, level=logging.INFO)
     for user in settings.users:
         check_for_price_drops(user.username, user.password, user.email)
