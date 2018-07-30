@@ -59,7 +59,7 @@ def check_for_price_drops(username, password, email):
                 departure_date=departure_date
             )
             logging.info(message)
-            if refund_amount > 0:
+            if matching_flights_price > 0 and refund_amount > 0:
                 logging.info('Sending email for price drop')
                 resp = requests.post(
                     'https://api.mailgun.net/v3/{}/messages'.format(settings.mailgun_domain),
